@@ -7,6 +7,12 @@ import GhosttyKit
 class QuickTerminalController: BaseTerminalController {
     override var windowNibName: NSNib.Name? { "QuickTerminal" }
 
+    /// Session-local override for auto-hide. When the user pins the Quick Terminal
+    /// via the on-window pin button, focus loss does not dismiss the window. This
+    /// does NOT persist across launches — `quick-terminal-autohide` in the config
+    /// remains the default behaviour each time the app starts.
+    @Published var isPinned: Bool = false
+
     /// The position for the quick terminal.
     let position: QuickTerminalPosition
 
@@ -185,9 +191,20 @@ class QuickTerminalController: BaseTerminalController {
             qtWindow.initialFrame = window.frame
         }
 
-        // Setup our content with tab support and glass effect
+        // Setup our content with tab support and glass effect. The pin-button
+        // overlay is rendered inside `QuickTerminalView` (top-right of the
+        // terminal area, below the tab bar when one is shown); its binding
+        // flips our `@Published isPinned`, which the auto-hide gate consults.
         window.contentView = TerminalViewContainer {
-            QuickTerminalView(ghostty: self.ghostty, controller: self, tabManager: tabManager)
+            QuickTerminalView(
+                ghostty: self.ghostty,
+                controller: self,
+                tabManager: tabManager,
+                isPinned: Binding(
+                    get: { [weak self] in self?.isPinned ?? false },
+                    set: { [weak self] in self?.isPinned = $0 }
+                )
+            )
         }
 
         // Clear out our frame at this point, the fixup from above is complete.
@@ -240,7 +257,7 @@ class QuickTerminalController: BaseTerminalController {
         // when we lose focus.
         hiddenDock?.restore()
 
-        if derivedConfig.quickTerminalAutoHide {
+        if derivedConfig.quickTerminalAutoHide && !isPinned {
             switch derivedConfig.quickTerminalSpaceBehavior {
             case .remain:
                 // If we lose focus on the active space, then we can animate out

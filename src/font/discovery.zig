@@ -402,6 +402,7 @@ pub const CoreText = struct {
             const han = try self.discoverCodepoint(
                 collection,
                 desc,
+                .system_cascade,
             ) orelse break :han;
 
             // This is silly but our discover iterator needs a slice so
@@ -429,6 +430,7 @@ pub const CoreText = struct {
             const ct_desc = try self.discoverCodepoint(
                 collection,
                 desc,
+                .primary_font_cascade,
             ) orelse break :codepoint;
 
             const list = try alloc.alloc(*macos.text.FontDescriptor, 1);
@@ -446,12 +448,30 @@ pub const CoreText = struct {
         return it;
     }
 
+    /// Which cascade list `CTFontCreateForString` should consult when
+    /// resolving a fallback for a codepoint not covered by the primary font.
+    const CascadeMode = enum {
+        /// Use the user's primary font's own cascade list. Appropriate for
+        /// arbitrary unknown codepoints (emoji, symbols, etc.) where the
+        /// primary font's designer-specified fallbacks are reasonable.
+        primary_font_cascade,
+
+        /// Use a system font's cascade list, so the fallback is driven by
+        /// macOS's locale-default chain rather than the primary font's
+        /// preferences. Used for CJK ideographs: monospace fonts like
+        /// JetBrainsMono frequently point their CJK fallback at Songti SC
+        /// (serif), which clashes with the system default sans-serif
+        /// PingFang SC that other macOS apps render Chinese in.
+        system_cascade,
+    };
+
     /// Discover a font for a specific codepoint using the CoreText
     /// CTFontCreateForString API.
     fn discoverCodepoint(
         self: *const CoreText,
         collection: *Collection,
         desc: Descriptor,
+        cascade: CascadeMode,
     ) !?*macos.text.FontDescriptor {
         _ = self;
 
@@ -521,8 +541,29 @@ pub const CoreText = struct {
             break :range_len if (pair) 2 else 1;
         };
 
+        // Get the base font whose cascade list `CTFontCreateForString`
+        // will consult. For CJK we use a system font (Helvetica) so we
+        // pick up macOS' locale-default cascade (PingFang SC for zh_CN
+        // etc.) instead of the user's primary monospace font cascade,
+        // which often points at Songti SC.
+        var system_base: ?*macos.text.Font = null;
+        if (cascade == .system_cascade) {
+            const name = try macos.foundation.String.createWithBytes(
+                "Helvetica",
+                .utf8,
+                false,
+            );
+            defer name.release();
+            const fd = try macos.text.FontDescriptor.createWithNameAndSize(name, 12);
+            defer fd.release();
+            system_base = try macos.text.Font.createWithFontDescriptor(fd, 12);
+        }
+        defer if (system_base) |b| b.release();
+
+        const base_font = system_base orelse original.font;
+
         // Get our font
-        const font = original.font.createForString(
+        const font = base_font.createForString(
             str,
             macos.foundation.Range.init(0, range_len),
         ) orelse return null;
