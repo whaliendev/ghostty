@@ -40,16 +40,17 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
     override func awakeFromNib() {
         super.awakeFromNib()
 
-        // We must hide the title since we're going to be moving tabs into
-        // the titlebar which have their own title.
-        titleVisibility = .hidden
-
         // Create a toolbar
         let toolbar = NSToolbar(identifier: "TerminalToolbar")
         toolbar.delegate = self
         toolbar.centeredItemIdentifiers.insert(.title)
         self.toolbar = toolbar
         toolbarStyle = .unifiedCompact
+
+        // Tahoe's compact toolbar is still 40 pt tall. A single-tab window
+        // doesn't need the toolbar at all, so use the standard 32 pt titlebar
+        // until AppKit creates a native tab bar.
+        updateToolbarVisibility(hasTabBar: false)
     }
 
     override func becomeMain() {
@@ -58,6 +59,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         // Check if we have a tab bar and set it up if we have to. See the comment
         // on this function to learn why we need to check this here.
         setupTabBar()
+        updateToolbarVisibility(hasTabBar: tabBarView != nil)
 
         viewModel.isMainWindow = true
     }
@@ -84,6 +86,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         // system will also try to add tab bar to this window, so we want to reset observer,
         // to put tab bar where we want again
         tabBarObserver = nil
+        updateToolbarVisibility(hasTabBar: true)
 
         // Some setup needs to happen BEFORE it is added, such as layout. If
         // we don't do this before the call below, we'll trigger an AppKit
@@ -147,6 +150,8 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             let titlebarView,
             let tabBarView = self.tabBarView
         else { return }
+
+        updateToolbarVisibility(hasTabBar: true)
 
         // View model updates must happen on their own ticks.
         DispatchQueue.main.async { [weak self] in
@@ -223,6 +228,14 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
 
         // Clear our observations
         self.tabBarObserver = nil
+        updateToolbarVisibility(hasTabBar: false)
+    }
+
+    /// Keep single-tab windows compact while retaining the toolbar that hosts
+    /// native tabs whenever AppKit shows a tab bar.
+    private func updateToolbarVisibility(hasTabBar: Bool) {
+        toolbar?.isVisible = hasTabBar
+        titleVisibility = hasTabBar ? .hidden : .visible
     }
 
     // MARK: NSToolbarDelegate
