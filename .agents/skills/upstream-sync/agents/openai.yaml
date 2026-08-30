@@ -1,0 +1,4 @@
+interface:
+  display_name: "Upstream Sync"
+  short_description: "Safely sync upstream Ghostty into personal develop"
+  default_prompt: "Use $upstream-sync to sync upstream Ghostty into my develop branch through a draft PR."
