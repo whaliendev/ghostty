@@ -4,7 +4,6 @@ struct QuickTerminalTabItemView: View {
     @ObservedObject var tab: QuickTerminalTab
 
     let isHighlighted: Bool
-    let isGlassEnabled: Bool
     /// The active Ghostty config, used to format the title (bell prefix etc.)
     /// via `QuickTerminalController.computeTitle` — the same rule the window
     /// title uses for regular terminals.
@@ -29,8 +28,8 @@ struct QuickTerminalTabItemView: View {
         tab.backgroundColor.map { NSColor($0) } ?? .windowBackgroundColor
     }
 
-    private var surfaceOpacity: Double {
-        tab.backgroundOpacity
+    private var surfaceBackgroundColor: Color {
+        Color(surfaceColor).opacity(tab.backgroundOpacity)
     }
 
     /// Color to blend the surface color toward when dimming or highlighting.
@@ -43,30 +42,37 @@ struct QuickTerminalTabItemView: View {
         return Color(blended).opacity(opacity)
     }
 
-    /// Extra opacity applied to inactive states when glass is enabled so the
-    /// glass effect bleeds through behind the tab bar. Kept high enough that
-    /// the tint isn't washed out by the glass — especially on light themes.
-    private var inactiveGlassOpacity: Double { isGlassEnabled ? 0.85 : 1 }
-
-    /// How far to blend the surface color toward the contrast color for
-    /// inactive/hover states. Glass needs a heavier tint since the glass
-    /// effect behind the tab dilutes the result.
-    private var hoverTint: CGFloat { isGlassEnabled ? 0.30 : 0.20 }
-    private var inactiveTint: CGFloat { isGlassEnabled ? 0.55 : 0.35 }
+    /// iTerm keeps inactive tab chrome nearly opaque even when its terminal
+    /// surface is translucent. Derive that chrome from the active theme so
+    /// dark, light, and colored backgrounds retain their own hue.
+    private func chromeColor(tintedBy fraction: CGFloat) -> Color {
+        let color = surfaceColor.blended(withFraction: fraction, of: contrastColor) ?? surfaceColor
+        return Color(color).opacity(Constants.chromeOpacity)
+    }
 
     private var backgroundColor: Color {
-        if isHighlighted { return Color(surfaceColor).opacity(surfaceOpacity) }
-        let opacity = surfaceOpacity * inactiveGlassOpacity
-        if isHovering { return tinted(by: hoverTint, opacity: opacity) }
-        return tinted(by: inactiveTint, opacity: opacity)
+        // The selected tab is the visual continuation of its terminal surface,
+        // so use the exact same color and opacity instead of a chrome tint.
+        if isHighlighted { return surfaceBackgroundColor }
+        let tint = isHovering ? Constants.hoveredChromeTint : Constants.unselectedChromeTint
+        return chromeColor(tintedBy: tint)
+    }
+
+    private var bottomSeparatorColors: [Color] {
+        let separatorColor = Color(contrastColor)
+        if isHighlighted {
+            return [.clear, .clear]
+        }
+
+        return [separatorColor.opacity(0.14), separatorColor.opacity(0.22)]
     }
 
     private var closeButtonBackgroundColor: Color {
         isHoveringCloseButton ? tinted(by: 0.45) : backgroundColor
     }
 
-    private var primaryForeground: Color { Color(contrastColor) }
-    private var secondaryForeground: Color { primaryForeground.opacity(0.6) }
+    private var primaryForeground: Color { Color(contrastColor).opacity(0.92) }
+    private var secondaryForeground: Color { Color(contrastColor).opacity(0.62) }
 
     var body: some View {
         HStack(spacing: Constants.horizontalSpacing) {
@@ -85,6 +91,14 @@ struct QuickTerminalTabItemView: View {
                 .fill(backgroundColor)
                 .onMiddleClick(perform: onClose)
         )
+        .overlay(alignment: .bottom) {
+            LinearGradient(
+                colors: bottomSeparatorColors,
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: Constants.bottomSeparatorHeight)
+        }
         .onHover { isHovering in
             self.isHovering = isHovering
         }
@@ -150,7 +164,11 @@ struct QuickTerminalTabItemView: View {
 extension QuickTerminalTabItemView {
     enum Constants {
         static let minWidth: CGFloat = 180
-        static let height: CGFloat = 24
+        static let height: CGFloat = 36
+        static let hoveredChromeTint: CGFloat = 0.25
+        static let unselectedChromeTint: CGFloat = 0.30
+        static let chromeOpacity: Double = 0.96
+        static let bottomSeparatorHeight: CGFloat = 1
         static let horizontalSpacing: CGFloat = 4
         static let horizontalPadding: CGFloat = 8
         static let closeButtonPadding: CGFloat = 2

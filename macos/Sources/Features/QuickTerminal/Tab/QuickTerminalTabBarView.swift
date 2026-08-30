@@ -14,11 +14,6 @@ struct QuickTerminalTabBarView: View {
 
     @State private var isHoveringNewTabButton = false
 
-    /// Whether the glass effect is enabled in the config
-    private var isGlassEnabled: Bool {
-        ghostty.config.backgroundBlur.isGlassStyle
-    }
-
     private var configuredSurfaceColor: NSColor {
         NSColor(ghostty.config.backgroundColor)
     }
@@ -27,37 +22,30 @@ struct QuickTerminalTabBarView: View {
         configuredSurfaceColor.isLightColor ? .black : .white
     }
 
-    private func configuredTinted(by fraction: CGFloat) -> Color {
-        let blended = configuredSurfaceColor.blended(withFraction: fraction, of: configuredContrastColor) ?? configuredSurfaceColor
-        return Color(blended).opacity(ghostty.config.backgroundOpacity)
+    private func configuredChromeColor(tintedBy fraction: CGFloat) -> Color {
+        let color = configuredSurfaceColor.blended(
+            withFraction: fraction,
+            of: configuredContrastColor
+        ) ?? configuredSurfaceColor
+        return Color(color).opacity(QuickTerminalTabItemView.Constants.chromeOpacity)
     }
 
     private var tabBarBackgroundColor: Color {
-        // When glass is enabled, leave the bar clear so the active tab composites
-        // directly onto the same glass layer as the terminal surface — any wash
-        // here would make the active tab look denser than the surface below it.
-        //
-        // Without glass, paint a very subtle themed wash so drag gaps (and the
-        // bar's footprint generally) read as "empty slot in the bar" instead of
-        // "hole through the window".
-        guard !isGlassEnabled else { return Color.clear }
-        return configuredTinted(by: 0.10)
+        // Keep the strip itself clear so the selected tab can composite its
+        // translucent terminal background directly onto the window's glass.
+        // Inactive tabs and the add button paint their own chrome explicitly.
+        .clear
     }
 
     private var newTabButtonBackgroundColor: Color {
-        if isGlassEnabled {
-            if isHoveringNewTabButton {
-                Color.white.opacity(0.25)
-            } else {
-                Color.white.opacity(0.1)
-            }
-        } else {
-            if isHoveringNewTabButton {
-                configuredTinted(by: 0.15)
-            } else {
-                ghostty.config.backgroundColor.opacity(ghostty.config.backgroundOpacity)
-            }
-        }
+        // Do not key the chrome palette off `background-blur`. The Quick
+        // Terminal can receive a config snapshot where the material has not
+        // resolved yet, but the tab strip must still use the same themed color
+        // hierarchy. Glass affects the window material, not which tab color is
+        // selected here.
+        configuredChromeColor(tintedBy: isHoveringNewTabButton
+            ? QuickTerminalTabItemView.Constants.hoveredChromeTint
+            : QuickTerminalTabItemView.Constants.unselectedChromeTint)
     }
 
     var body: some View {
@@ -179,7 +167,6 @@ struct QuickTerminalTabBarView: View {
             content: QuickTerminalTabItemView(
                 tab: tab,
                 isHighlighted: tabManager.currentTab?.id == tab.id,
-                isGlassEnabled: isGlassEnabled,
                 config: ghostty.config,
                 tabsCount: tabManager.tabs.count,
                 onSelect: { tabManager.selectTab(tab) },
@@ -210,14 +197,19 @@ struct QuickTerminalTabBarView: View {
         )
         .frame(maxWidth: .infinity)
 
-        Divider()
-            .background(Color(NSColor.separatorColor))
+        Rectangle()
+            .fill(Color.black.opacity(Constants.tabDividerOpacity))
+            .frame(width: Constants.tabDividerWidth)
     }
 }
 
 extension QuickTerminalTabBarView {
     enum Constants {
-        static let height: CGFloat = 24
+        /// iTerm-style tab bars have enough vertical room for the title to
+        /// breathe while remaining compact beside the terminal content.
+        static let height: CGFloat = 36
+        static let tabDividerOpacity: Double = 0.32
+        static let tabDividerWidth: CGFloat = 1
         static let addNewTabButtonHorizontalPadding: CGFloat = 8
         static let addNewTabButtonSize: CGFloat = 50
         static let dropPlaceholderWidth: CGFloat = QuickTerminalTabItemView.Constants.minWidth
@@ -383,4 +375,3 @@ private class QuickTerminalTabContextMenuView: NSView {
         return hostingView
     }
 }
-
