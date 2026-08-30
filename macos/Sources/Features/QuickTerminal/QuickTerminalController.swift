@@ -225,8 +225,6 @@ class QuickTerminalController: BaseTerminalController {
         // applies if we can be seen.
         guard visible else { return }
 
-        terminalViewContainer?.updateGlassTintOverlay(isKeyWindow: true)
-
         // Re-hide the dock if we were hiding it before.
         hiddenDock?.hide()
     }
@@ -239,8 +237,6 @@ class QuickTerminalController: BaseTerminalController {
         // windowDidResignKey will also get called after animateOut so this
         // ensures we don't run logic twice.
         guard visible else { return }
-
-        terminalViewContainer?.updateGlassTintOverlay(isKeyWindow: false)
 
         // We don't animate out if there is a modal sheet being shown currently.
         // This lets us show alerts without causing the window to disappear.
@@ -416,6 +412,16 @@ class QuickTerminalController: BaseTerminalController {
         ) {
             action()
         }
+    }
+
+    override func newSplit(
+        at oldView: Ghostty.SurfaceView,
+        direction: SplitTree<Ghostty.SurfaceView>.NewDirection,
+        baseConfig config: Ghostty.SurfaceConfiguration? = nil
+    ) -> Ghostty.SurfaceView? {
+        var config = config ?? Ghostty.SurfaceConfiguration()
+        config.environmentVariables["GHOSTTY_QUICK_TERMINAL"] = "1"
+        return super.newSplit(at: oldView, direction: direction, baseConfig: config)
     }
 
     // MARK: Methods
@@ -749,6 +755,16 @@ class QuickTerminalController: BaseTerminalController {
         }
 
         terminalViewContainer?.ghosttyConfigDidChange(ghostty.config, preferredBackgroundColor: nil)
+    }
+
+    override func confirmCloseAsync(messageText: String, informativeText: String, confirmButtonTitle: String = "Close") async -> NSApplication.ModalResponse? {
+
+        let waitTime = visible ? 0 : 0.25
+        animateIn()
+
+        try? await Task.sleep(for: .seconds(waitTime))
+
+        return await super.confirmCloseAsync(messageText: messageText, informativeText: informativeText, confirmButtonTitle: confirmButtonTitle)
     }
 
     // MARK: First Responder
