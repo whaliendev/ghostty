@@ -161,6 +161,7 @@ j-c-m
 j0hnm4r5
 jacobsandlund
 jake-stewart
+jakeriksen
 -jamesarch Bad AI etiquette
 jamylak
 jarred-sumner
@@ -175,6 +176,7 @@ josephmart
 jparise
 juniqlim
 justonia
+jzillmann
 karesansui-u
 kataokatsuki
 kawarimidoll
@@ -184,6 +186,7 @@ khipp
 kierancanter
 kirwiisp
 kjvdven
+kleshzz
 kloneets
 knu
 -kody-w
@@ -312,6 +315,7 @@ tbrundige
 tdgroot
 tdslot
 thirstycrow
+-thomas-trijindev No human in the loop
 thoutbeckers
 ticclick
 tnagatomi
